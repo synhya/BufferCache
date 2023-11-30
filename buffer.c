@@ -52,7 +52,7 @@ void delayed_write(int block_nr, char* buffer_data)
 // call every time user asks to fill in buffer
 // cache-hit -> update block_nr to front
 // cache-miss -> add new block_nr (remove one if list is full)
-void update_buffer_cache_state(int block_nr, char* buffer_data) {
+void update_buffer_cache_state(int block_nr, char * buffer_data) {
     // update order of block_nr and return if list contains block_nr
     if(list_contains_item(&cached_block_nr_list, block_nr) == 1)
     {
@@ -96,9 +96,15 @@ void update_buffer_cache_state(int block_nr, char* buffer_data) {
         ht_erase(&hash_table, &target_block_nr);
     }
 
-    // insert block_nr to list, buffer_data to hash_table
+    // insert block_nr to list, cache_entry to hash_table
     list_insert_first(&cached_block_nr_list, block_nr);
-    ht_insert(&hash_table, &block_nr, &buffer_data);
+
+    CacheEntry cache_entry;
+    cache_entry.last_ref_time = clock();
+    cache_entry.ref_count = 0;
+    cache_entry.dirty = 0;
+    memcpy(cache_entry.buffer_data, buffer_data, BLOCK_SIZE);
+    ht_insert(&hash_table, &block_nr, &cache_entry);
 }
 
 int buffered_read(int block_nr, char *user_buffer)
@@ -247,6 +253,7 @@ int main (int argc, char *argv[])
     list_clear(&cached_block_nr_list);
 
     close(disk_fd);
+    free(buffer);
 
     return 0;
 }
