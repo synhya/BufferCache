@@ -16,8 +16,10 @@ typedef struct LinkedList     //make Node for linked list using structure
 
 
 void list_setup(LinkedList* new_list,int capacity);
-int list_pop_last(LinkedList* list);
 void list_insert_first(LinkedList* list, int ele);
+void list_clear(LinkedList* list);
+
+int list_pop_last(LinkedList* list);
 
 int  list_contains_item(LinkedList* list, int ele);
 int list_pop_item(LinkedList* list, int ele);
@@ -27,8 +29,8 @@ void insertafter(LinkedList* list, int ele, int num);
 
 void print(LinkedList* list);
 
-void deleteitem(LinkedList* list, int ele);
 void deletefirst(LinkedList* list);
+void deleteitem(LinkedList* list, int ele);
 void deletelast(LinkedList* list);
 void reverselist(LinkedList* list);
 

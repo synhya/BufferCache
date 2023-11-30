@@ -207,15 +207,13 @@ int init()
 
     /////////////////////////////////////////////////////////////////////
     /// create dummy file for debugging (comment out if don't need)
-    disk_fd = open("diskfile", O_RDWR|O_DIRECT|O_CREAT, 0777);
-    close(disk_fd);
-    if(truncate("diskfile", BLOCK_SIZE * BLOCK_MAX_COUNT) == -1)
+    if(truncate("diskfileD", BLOCK_SIZE * BLOCK_MAX_COUNT) == -1)
     {
         printf("failed to truncate file \n");
     }
     /////////////////////////////////////////////////////////////////////
 
-    disk_fd = open("diskfile", O_RDWR|O_DIRECT|O_CREAT, 0777);
+    disk_fd = open("diskfileD", O_RDWR|O_DIRECT|O_CREAT, 0777);
     if (disk_fd < 0)
     {
         printf("failed to open file \n");
@@ -227,6 +225,7 @@ int main (int argc, char *argv[])
 {
     char *buffer;
     int ret;
+
 
     init();
 
@@ -244,6 +243,9 @@ int main (int argc, char *argv[])
 
     ht_clear(&hash_table);
     ht_destroy(&hash_table);
+
+    list_clear(&cached_block_nr_list);
+
     close(disk_fd);
 
     return 0;

@@ -4,14 +4,11 @@
 
 //struct Node *head;    //contains the address of first element of linked list
 
-void list_setup(LinkedList* new_list, int capacity)
+void list_setup(LinkedList* list, int capacity)
 {
-    LinkedList *list;
-    list=(LinkedList*)malloc(sizeof(LinkedList));
-    list->head= NULL; //initialize the beginning(head) of list to NULL
+    list->head = NULL; //initialize the beginning(head) of list to NULL
     list->current_size = 0;
     list->capacity = capacity;
-    new_list = list;
 }
 
 void list_insert_first(LinkedList* list, int ele)   //inserts ele in linked list
@@ -128,7 +125,7 @@ void deletelast(LinkedList* list)   //delete the last element
     if(prev->next!=NULL)
         prev->next=NULL;
     free(cur);
-    list->current_size -= 1;
+
 }
 
 void deletefirst(LinkedList* list)    //delete the first element
@@ -257,4 +254,10 @@ int list_pop_item(LinkedList* list, int ele)
     list->current_size -= 1;
 
     return value;
+}
+
+void list_clear(LinkedList* list) {
+    while(list->head != NULL) {
+        deletefirst(list);
+    }
 }
