@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
+#include "DataStructureLibrary/hashtable.h"
+#include "DataStructureLibrary/linkedlist.h"
 
 #define BLOCK_SIZE	4096
 #define BLOCK_MAX_COUNT 1000
@@ -13,33 +16,120 @@
 char *disk_buffer;
 int disk_fd;
 
-char *cache_buffer;
-// Use Hash Table as Cache ?
-// Pair<K, V> where K = block_nr, V = data
-// 1. insert K to hash function
-// 2. modulo new K by table size
-// 3. table index = step 2 result, value = V
-// 4. when finding value, hash(K) % table_size is the index.
+HashTable hash_table;
+
+// need this in order to iterate through all cache entries in hash table
+LinkedList cached_block_nr_list;
+
+char* algorithm;
+
+int LRU()
+{
+    return 0;
+}
+
+int LFU()
+{
+    return 0;
+}
+
+// call every time user asks to fill in buffer
+// cache-hit -> update block_nr to front
+// cache-miss -> add new block_nr (remove one if list is full)
+void update_buffer_cache_state(int block_nr, char* buffer_data) {
+    // update order of block_nr and return if list contains block_nr
+    if(list_contains_item(&cached_block_nr_list, block_nr) == 1)
+    {
+        list_pop_item(&cached_block_nr_list, block_nr);
+        list_insert_first(&cached_block_nr_list, block_nr);
+        return;
+    }
+    // select victim if list is full
+    // should remove from both list and cache
+    else if (cached_block_nr_list.current_size >= cached_block_nr_list.capacity)
+    {
+        int target_block_nr;
+        /****************** FIFO ******************/
+        // remove last if reached limit
+        if(strcmp(algorithm, "FIFO") == 0 || algorithm==NULL)
+        {
+            target_block_nr = list_pop_last(&cached_block_nr_list);
+            ht_erase(&hash_table, &target_block_nr);
+        }
+        /****************** LRU ******************/
+        // iterate all entries' last_ref_time and
+        // erase the one with lowest time value
+        else if(strcmp(algorithm, "LRU") == 0)
+        {
+            target_block_nr = LRU();
+
+            list_pop_item(&cached_block_nr_list, target_block_nr);
+            ht_erase(&hash_table, &target_block_nr);
+        }
+        /****************** LFU ******************/
+        // iterate all entries' ref_count value and
+        // erase the one with lowest time value
+        else if(strcmp(algorithm, "LFU") == 0)
+        {
+            target_block_nr = LFU();
+
+            list_pop_item(&cached_block_nr_list, target_block_nr);
+            ht_erase(&hash_table, &target_block_nr);
+        }
+    }
+
+    // insert block_nr to list, buffer_data to hash_table
+    list_insert_first(&cached_block_nr_list, block_nr);
+    ht_insert(&hash_table, &block_nr, &buffer_data);
+}
+
+typedef struct CacheEntry{
+    clock_t last_ref_time;      // access time for LRU
+    int ref_count;          // reference count for LFU
+    int dirty;              // dirty bit for delayed write
+    char buffer_data[BLOCK_SIZE];
+} CacheEntry;
+
+int buffered_read(int block_nr, char *user_buffer)
+{
+    if(ht_contains(&hash_table, &block_nr)) {
+        CacheEntry* cache_entry = (CacheEntry*)ht_lookup(&hash_table, &block_nr);
+
+        cache_entry->ref_count += 1;
+        cache_entry->last_ref_time = clock();
+        memcpy(user_buffer, cache_entry->buffer_data, BLOCK_SIZE);
+
+        return 0;
+    }
+
+    return -1;
+}
+
 
 int os_read(int block_nr, char *user_buffer)
 {
     int ret;
 
     // implement BUFFERED_READ
+    ret = buffered_read(block_nr, user_buffer);
 
-    ret = lseek(disk_fd, block_nr * BLOCK_SIZE, SEEK_SET);
-    if (ret < 0)
-        return ret;
+    /****************** cache miss ******************/
+    if(ret == -1) {
+        ret = lseek(disk_fd, block_nr * BLOCK_SIZE, SEEK_SET);
+        if (ret < 0)
+            return ret;
 
-    ret = read(disk_fd, disk_buffer, BLOCK_SIZE);
-    if (ret < 0)
-        return ret;
+        ret = read(disk_fd, disk_buffer, BLOCK_SIZE);
+        if (ret < 0)
+            return ret;
 
-    memcpy(user_buffer, disk_buffer, BLOCK_SIZE);
+        memcpy(user_buffer, disk_buffer, BLOCK_SIZE);
+    }
+
+    update_buffer_cache_state(block_nr, user_buffer);
 
     return ret;
 }
-
 
 int os_write(int block_nr, char *user_buffer)
 {
@@ -82,11 +172,15 @@ int init()
 
     printf("disk_buffer: %p\n", disk_buffer);
 
-    // for debugging
+    /////////////////////////////////////////////////////////////////////
+    // create dummy file for debugging (comment out if don't need)
+    disk_fd = open("diskfile", O_RDWR|O_DIRECT|O_CREAT, 0777);
+    close(disk_fd);
     if(truncate("diskfile", BLOCK_SIZE * BLOCK_MAX_COUNT) == -1)
     {
         printf("failed to truncate file \n");
     }
+    /////////////////////////////////////////////////////////////////////
 
     disk_fd = open("diskfile", O_RDWR|O_DIRECT|O_CREAT, 0777);
     if (disk_fd < 0)
@@ -104,7 +198,12 @@ int main (int argc, char *argv[])
     init();
 
     buffer = malloc(BLOCK_SIZE);
-    cache_buffer = malloc(BLOCK_SIZE * CACHE_SIZE);
+
+    /////////////////////////////////////////////////////////////////////
+    ht_setup(&hash_table, sizeof(int), sizeof(CacheEntry), CACHE_SIZE);
+    list_setup(&cached_block_nr_list, CACHE_SIZE);
+    algorithm = argv[1];
+    /////////////////////////////////////////////////////////////////////
 
     ret = lib_read(0, buffer);
     printf("nread: %d\n", ret);
@@ -112,7 +211,11 @@ int main (int argc, char *argv[])
     ret = lib_write(0, buffer);
     printf("nwrite: %d\n", ret);
 
+    /////////////////////////////////////////////////////////////////////
+    ht_clear(&hash_table);
+    ht_destroy(&hash_table);
     close(disk_fd);
+    /////////////////////////////////////////////////////////////////////
 
     return 0;
 }
