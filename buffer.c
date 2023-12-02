@@ -64,6 +64,10 @@ void write_to_disk(CacheEntry* entry) {
 void* flush_thread(void* arg) {
     CacheEntry* entry = (CacheEntry*)arg;
     write_to_disk(entry);
+
+    // 쓰레드 종료전에 지워지는 것을 막기 위해서 추가
+    ht_erase(&hash_table, &entry->block_nr);
+
     return NULL;
 }
 
@@ -76,6 +80,19 @@ void start_flush_thread(CacheEntry* entry) {
     pthread_detach(thread_id); 
 }
 
+// insert block_nr to list, cache_entry to hash_table
+void create_cache_entry(int block_nr, char * buffer_data)
+{
+    list_insert_first(&cached_block_nr_list, block_nr);
+
+    CacheEntry cache_entry;
+    cache_entry.block_nr = block_nr;
+    cache_entry.last_ref_time = clock();
+    cache_entry.ref_count = 0;
+    cache_entry.dirty = 0;
+    memcpy(cache_entry.buffer_data, buffer_data, BLOCK_SIZE);
+    ht_insert(&hash_table, &block_nr, &cache_entry);
+}
 
 // call every time user asks to fill in buffer
 // cache-hit -> update block_nr to front
@@ -121,18 +138,13 @@ void update_buffer_cache_state(int block_nr, char * buffer_data) {
         {
             start_flush_thread(entry);
         }
-        ht_erase(&hash_table, &target_block_nr);
+        else
+        {
+            ht_erase(&hash_table, &target_block_nr);
+        }
     }
 
-    // insert block_nr to list, cache_entry to hash_table
-    list_insert_first(&cached_block_nr_list, block_nr);
-
-    CacheEntry cache_entry;
-    cache_entry.last_ref_time = clock();
-    cache_entry.ref_count = 0;
-    cache_entry.dirty = 0;
-    memcpy(cache_entry.buffer_data, buffer_data, BLOCK_SIZE);
-    ht_insert(&hash_table, &block_nr, &cache_entry);
+    create_cache_entry(block_nr, buffer_data);
 }
 
 int buffered_read(int block_nr, char *user_buffer)
