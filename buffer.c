@@ -17,7 +17,9 @@ typedef struct CacheEntry{
     clock_t last_ref_time;      // access time for LRU
     int ref_count;          // reference count for LFU
     int dirty;              // dirty bit for delayed write
+    int block_nr; 
     char buffer_data[BLOCK_SIZE];
+    pthread_mutex_t lock;
 } CacheEntry;
 
 char *disk_buffer;
@@ -38,6 +40,38 @@ int LRU()
 int LFU()
 {
     return 0;
+}
+
+void write_to_disk(CacheEntry* entry) {
+    int ret;
+
+    pthread_mutex_lock(&(entry->lock));
+
+    if(entry->dirty) {
+        ret = lseek(disk_fd, entry->block_nr * BLOCK_SIZE, SEEK_SET);
+        if(ret >= 0) {
+            ret = write(disk_fd, entry->buffer_data, BLOCK_SIZE);
+            if(ret >= 0) {
+                entry->dirty = 0; 
+            }
+        }
+    }
+
+    pthread_mutex_unlock(&(entry->lock));
+}
+
+void* flush_thread(void* arg) {
+    CacheEntry* entry = (CacheEntry*)arg;
+    write_to_disk(entry);
+    return NULL;
+}
+
+void start_flush_thread(CacheEntry* entry) {
+    pthread_t thread_id;
+    if(pthread_create(&thread_id, NULL, flush_thread, (void*)entry) != 0) {
+        perror("Failed to create the flush thread");
+    }
+    pthread_detach(thread_id); 
 }
 
 void delayed_write(int block_nr, char* buffer_data)
