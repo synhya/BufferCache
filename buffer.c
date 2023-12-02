@@ -6,6 +6,7 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include <pthread.h>
 #include "DataStructureLibrary/hashtable.h"
 #include "DataStructureLibrary/linkedlist.h"
 
@@ -66,6 +67,7 @@ void* flush_thread(void* arg) {
     return NULL;
 }
 
+// delayed_write with thread
 void start_flush_thread(CacheEntry* entry) {
     pthread_t thread_id;
     if(pthread_create(&thread_id, NULL, flush_thread, (void*)entry) != 0) {
@@ -74,14 +76,6 @@ void start_flush_thread(CacheEntry* entry) {
     pthread_detach(thread_id); 
 }
 
-void delayed_write(int block_nr, char* buffer_data)
-{
-    // • Dirty Buffer를 Disk에 Write하는 기능을 Thread (flush thread)를 이용하여 해볼 것
-    // • Buffer가 flush thread에 의해 Disk에 Write 중인 경우, 응용이 overwrite하지 못하도록
-    //   동기화 (locking) 메커니즘을 사용할 것
-
-
-}
 
 // call every time user asks to fill in buffer
 // cache-hit -> update block_nr to front
@@ -125,7 +119,7 @@ void update_buffer_cache_state(int block_nr, char * buffer_data) {
         CacheEntry* entry = (CacheEntry*)ht_lookup(&hash_table, &target_block_nr);
         if(entry->dirty == 1)
         {
-            delayed_write(target_block_nr, entry->buffer_data);
+            start_flush_thread(entry);
         }
         ht_erase(&hash_table, &target_block_nr);
     }
