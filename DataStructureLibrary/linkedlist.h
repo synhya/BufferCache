@@ -28,6 +28,7 @@ void insertlast(LinkedList* list, int ele);
 void insertafter(LinkedList* list, int ele, int num);
 
 void print(LinkedList* list);
+void printReverse(LinkedList* list);
 
 void deletefirst(LinkedList* list);
 void deleteitem(LinkedList* list, int ele);

@@ -22,6 +22,8 @@ void list_insert_first(LinkedList* list, int ele)   //inserts ele in linked list
     New->next=NULL;           //makes the next part of Node New NULL so that no garbage value remains
     New->next = head;         //the address of previously first Node, which was stored in head is now assigned to next part of Node New
     list->head = New;              //the address of new first ele which is present in Node New is assigned to head Node
+
+    int a =0;
 }
 
 void print(LinkedList* list)
@@ -69,15 +71,12 @@ void deleteitem(LinkedList* list, int ele)
 /// return 1 if found
 int list_contains_item(LinkedList* list, int ele)
 {
-    Node* head = list->head;
-
-    struct Node* temp ;
-    temp = head;
-    while (temp != 0)
+    Node* cur = list->head;
+    while (cur != NULL)
     {
-        if (temp->value == ele)
+        if (cur->value == ele)
             return 1 ;          //element is found
-        temp = temp->next;
+        cur = cur->next;
     }
     return 0 ;
 }
@@ -130,18 +129,17 @@ void deletelast(LinkedList* list)   //delete the last element
 
 void deletefirst(LinkedList* list)    //delete the first element
 {
-    Node* head = list->head;
-
     struct Node* cur;
-    if(head==NULL)
+    if(list->head==NULL)
     {
         printf("list is empty and nothing to delete\n");
         return;
     }
 
-    cur=head;
-    head=head->next;
+    cur=list->head;
+    list->head=list->head->next;
     free(cur);
+    cur = NULL;
     list->current_size -= 1;
 }
 
@@ -163,15 +161,15 @@ void insertafter(LinkedList* list, int ele, int num)   //inserts element for any
     list->current_size += 1;
 }
 
-void printReverse(LinkedList* list)    //print the linked list in reverse way using recursion
-{
-    Node* head = list->head;
-
-    if (head == NULL)
-        return;
-    printReverse(head->next);
-    printf("%d->", head->value);
-}
+//void printReverse(LinkedList* list)    //print the linked list in reverse way using recursion
+//{
+//    Node* head = list->head;
+//
+//    if (head == NULL)
+//        return;
+//    printReverse(head->next);
+//    printf("%d->", head->value);
+//}
 
 void reverselist(LinkedList* list)    //reverse the linked list
 {
@@ -207,15 +205,14 @@ void sum(LinkedList* list)    //sum of elements of the linked list
 
 int list_pop_last(LinkedList* list)   //delete the last element
 {
-    Node* head = list->head;
     int value;
 
-    if(head==NULL)
+    if(list->head==NULL)
     {
         printf("list is empty and nothing to delete\n");
         return -1;
     }
-    struct Node* cur=head;
+    struct Node* cur=list->head;
     struct Node* prev=NULL;
     while(cur->next!=NULL)
     {
@@ -225,7 +222,9 @@ int list_pop_last(LinkedList* list)   //delete the last element
     if(prev->next!=NULL)
         prev->next=NULL;
     value = cur->value;
+
     free(cur);
+    cur = NULL;
     list->current_size -= 1;
 
     return value;
@@ -234,12 +233,11 @@ int list_pop_last(LinkedList* list)   //delete the last element
 // find element and pop it out
 int list_pop_item(LinkedList* list, int ele)
 {
-    Node* head = list->head;
     int value;
 
-    if(head==NULL)
+    if(list->head==NULL)
         printf("list is empty and nothing to delete\n");
-    struct Node* cur=head;
+    struct Node* cur=list->head;
     struct Node* prev=NULL;
     while(cur->value!=ele)
     {
@@ -248,8 +246,13 @@ int list_pop_item(LinkedList* list, int ele)
     }
     if(prev!=NULL)
         prev->next=cur->next;       //the address of next Node after the Node containing element to be deleted is assigned to the previous Node of the Node containing the element to be deleted
+    else
+        list->head = cur->next;
+
     value = cur->value;
+
     free(cur);                      //memory of the structure cur is deallocated
+    cur = NULL;
 
     list->current_size -= 1;
 

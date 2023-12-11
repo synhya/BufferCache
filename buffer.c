@@ -118,8 +118,8 @@ void* flush_thread(void* arg) {
     CacheEntry* entry = (CacheEntry*)arg;
     write_to_disk(entry);
 
-    // 쓰레드 종료전에 지워지는 것을 막기 위해서 추가
-    ht_erase(&hash_table, &entry->block_nr);
+    // segfault error occurs if erase from hash_table (bug)
+//    ht_erase(&hash_table, &entry->block_nr);
 
     return NULL;
 }
@@ -186,15 +186,17 @@ void update_buffer_cache_state(int block_nr, char * buffer_data) {
             list_pop_item(&cached_block_nr_list, target_block_nr);
         }
 
+        // problem part!
+
         CacheEntry* entry = (CacheEntry*)ht_lookup(&hash_table, &target_block_nr);
         if(entry->dirty == 1)
         {
             start_flush_thread(entry);
         }
-        else
-        {
-            ht_erase(&hash_table, &target_block_nr);
-        }
+
+        // segfault error occurs if erase from hash_table (bug)
+//      ht_erase(&hash_table, &target_block_nr);
+
     }
 
     create_cache_entry(block_nr, buffer_data);
@@ -329,17 +331,21 @@ int main (int argc, char *argv[])
     char *buffer;
     int ret;
 
+
     init();
 
     buffer = malloc(BLOCK_SIZE);
 
-    ht_setup(&hash_table, sizeof(int), sizeof(CacheEntry), CACHE_SIZE);
+    ht_setup(&hash_table, sizeof(int), sizeof(CacheEntry), BLOCK_MAX_COUNT * 5);
     list_setup(&cached_block_nr_list, CACHE_SIZE);
     algorithm = argv[1];
     start_time = clock();
 
+    unsigned int seed = time(NULL);
+    srand(seed);
+
     // generate access sequence
-    int access_multiplier = 4;
+    int access_multiplier = 5;
     int access_count = BLOCK_MAX_COUNT * access_multiplier;
     block_access_sequence = malloc(sizeof(int) * access_count);
     for(int i = 0; i < access_count; i++) {
@@ -352,10 +358,8 @@ int main (int argc, char *argv[])
     for(int i = 0; i < access_count; i++) {
         if((double)random()/RAND_MAX > 0.5) {
             ret = lib_read(block_access_sequence[i], buffer);
-//            printf("nread: %d\n", ret);
         } else {
             ret = lib_write(block_access_sequence[i], buffer);
-//            printf("nwrite: %d\n", ret);
         }
     }
 
@@ -365,7 +369,6 @@ int main (int argc, char *argv[])
     printf("hit ratio: %lf\n", (double)hit_counter / (double)access_count);
 
     ht_clear(&hash_table);
-    ht_destroy(&hash_table);
 
     list_clear(&cached_block_nr_list);
 

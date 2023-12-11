@@ -174,8 +174,10 @@ void* ht_lookup(HashTable* table, void* key) {
     assert(table != NULL);
     assert(key != NULL);
 
-    if (table == NULL) return NULL;
-    if (key == NULL) return NULL;
+    if (table == NULL)
+        return NULL;
+    if (key == NULL)
+        return NULL;
 
     index = _ht_hash(table, key);
     for (node = table->nodes[index]; node; node = node->next) {
