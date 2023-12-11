@@ -7,16 +7,17 @@
 #include <errno.h>
 #include <time.h>
 #include <pthread.h>
+#include <math.h>
 #include "DataStructureLibrary/hashtable.h"
 #include "DataStructureLibrary/linkedlist.h"
 
 #define BLOCK_SIZE	4096
-#define BLOCK_MAX_COUNT 1000
+#define BLOCK_MAX_COUNT 100
 #define CACHE_SIZE 10
 
 typedef struct CacheEntry{
-    clock_t last_ref_time;      // access time for LRU
-    int ref_count;          // reference count for LFU
+    clock_t last_ref_time;      // access time for least_recently_used
+    int ref_count;          // reference count for least_frequently_used
     int dirty;              // dirty bit for delayed write
     int block_nr; 
     char buffer_data[BLOCK_SIZE];
@@ -32,15 +33,67 @@ HashTable hash_table;
 LinkedList cached_block_nr_list;
 
 char* algorithm;
+clock_t start_time;
 
-int LRU()
-{
-    return 0;
+int* block_access_sequence;
+int hit_counter;
+
+double box_muller_distribution() {
+    double x, y, z = -99;
+    double limitValue = 2.5;
+
+    // log x가 무한히 작아질 수 있어서 대충 2.5에서 자름
+    while(z < -limitValue || z > limitValue) {
+        while((x = (double)random() / RAND_MAX) == 0) {}
+
+        y = (double)random() / RAND_MAX;
+
+        z = sqrt(-2 * log(x)) * cos(2 * M_PI * y);
+    }
+    // -limitValue ~ limitValue to 0 ~ 1
+    double ret = (z + limitValue) / (2 * limitValue);
+
+    return ret;
 }
 
-int LFU()
+int least_recently_used()
 {
-    return 0;
+    Node* ptr = cached_block_nr_list.head;
+    CacheEntry* entry;
+    clock_t most_recent_time = start_time;
+    int target_idx = -1;
+
+    for(;ptr != NULL; ptr = ptr->next) {
+        entry = (CacheEntry*)ht_lookup(&hash_table, &ptr->value);
+        clock_t last_ref_time = entry->last_ref_time;
+
+        if(last_ref_time - most_recent_time > 0) {
+            most_recent_time = last_ref_time;
+            target_idx = ptr->value;
+        }
+    }
+
+    return target_idx;
+}
+
+int least_frequently_used()
+{
+    Node* ptr = cached_block_nr_list.head;
+    CacheEntry* entry;
+    int min=9999999;
+    int target_idx = -1;
+
+    for(;ptr != NULL; ptr = ptr->next) {
+        entry = (CacheEntry*)ht_lookup(&hash_table, &ptr->value);
+        int ref_count = entry->ref_count;
+
+        if(min > ref_count) {
+            min = ref_count;
+            target_idx = ptr->value;
+        }
+    }
+
+    return target_idx;
 }
 
 void write_to_disk(CacheEntry* entry) {
@@ -112,24 +165,24 @@ void update_buffer_cache_state(int block_nr, char * buffer_data) {
         int target_block_nr;
         /****************** FIFO ******************/
         // remove last if reached limit
-        if(strcmp(algorithm, "FIFO") == 0 || algorithm==NULL)
+        if(algorithm==NULL || strcmp(algorithm, "FIFO") == 0)
         {
             target_block_nr = list_pop_last(&cached_block_nr_list);
         }
-        /****************** LRU ******************/
+        /****************** least_recently_used ******************/
         // iterate all entries' last_ref_time and
         // erase the one with lowest time value
-        else if(strcmp(algorithm, "LRU") == 0)
+        else if(strcmp(algorithm, "least_recently_used") == 0)
         {
-            target_block_nr = LRU();
+            target_block_nr = least_recently_used();
             list_pop_item(&cached_block_nr_list, target_block_nr);
         }
-        /****************** LFU ******************/
+        /****************** least_frequently_used ******************/
         // iterate all entries' ref_count value and
         // erase the one with lowest time value
-        else if(strcmp(algorithm, "LFU") == 0)
+        else if(strcmp(algorithm, "least_frequently_used") == 0)
         {
-            target_block_nr = LFU();
+            target_block_nr = least_frequently_used();
             list_pop_item(&cached_block_nr_list, target_block_nr);
         }
 
@@ -184,7 +237,9 @@ int os_read(int block_nr, char *user_buffer)
     int ret;
 
     // implement BUFFERED_READ
-    ret = buffered_read(block_nr, user_buffer);
+    if((ret = buffered_read(block_nr, user_buffer)) == 0) {
+        hit_counter++;
+    }
 
     /****************** cache miss ******************/
     if(ret == -1) {
@@ -209,7 +264,9 @@ int os_write(int block_nr, char *user_buffer)
     int ret;
 
     // implement BUFFERED_WRITE
-    ret = buffered_write(block_nr, user_buffer);
+    if((ret = buffered_write(block_nr, user_buffer)) == 0) {
+        hit_counter++;
+    }
 
     /****************** cache miss ******************/
     if(ret == -1) {
@@ -272,7 +329,6 @@ int main (int argc, char *argv[])
     char *buffer;
     int ret;
 
-
     init();
 
     buffer = malloc(BLOCK_SIZE);
@@ -280,12 +336,33 @@ int main (int argc, char *argv[])
     ht_setup(&hash_table, sizeof(int), sizeof(CacheEntry), CACHE_SIZE);
     list_setup(&cached_block_nr_list, CACHE_SIZE);
     algorithm = argv[1];
+    start_time = clock();
 
-    ret = lib_read(0, buffer);
-    printf("nread: %d\n", ret);
+    // generate access sequence
+    int access_multiplier = 4;
+    int access_count = BLOCK_MAX_COUNT * access_multiplier;
+    block_access_sequence = malloc(sizeof(int) * access_count);
+    for(int i = 0; i < access_count; i++) {
+        double dist_value = box_muller_distribution();
+        block_access_sequence[i] = (int)floor(dist_value * BLOCK_MAX_COUNT);
+    }
+    hit_counter = 0;
 
-    ret = lib_write(0, buffer);
-    printf("nwrite: %d\n", ret);
+    // access block
+    for(int i = 0; i < access_count; i++) {
+        if((double)random()/RAND_MAX > 0.5) {
+            ret = lib_read(block_access_sequence[i], buffer);
+//            printf("nread: %d\n", ret);
+        } else {
+            ret = lib_write(block_access_sequence[i], buffer);
+//            printf("nwrite: %d\n", ret);
+        }
+    }
+
+    // print result
+    printf("total access count: %d\n", access_count);
+    printf("total hit count: %d\n", hit_counter);
+    printf("hit ratio: %lf\n", (double)hit_counter / (double)access_count);
 
     ht_clear(&hash_table);
     ht_destroy(&hash_table);
@@ -294,6 +371,7 @@ int main (int argc, char *argv[])
 
     close(disk_fd);
     free(buffer);
+    free(block_access_sequence);
 
     return 0;
 }

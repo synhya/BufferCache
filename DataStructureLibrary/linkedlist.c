@@ -20,8 +20,8 @@ void list_insert_first(LinkedList* list, int ele)   //inserts ele in linked list
     New=(Node*)malloc(sizeof(Node));    //New named Node declared with current_size of Node declared before
     New->value=ele;       //inserts the new ele to the value part of Node New
     New->next=NULL;           //makes the next part of Node New NULL so that no garbage value remains
-    New->next=head;         //the address of previously first Node, which was stored in head is now assigned to next part of Node New
-    head=New;              //the address of new first ele which is present in Node New is assigned to head Node
+    New->next = head;         //the address of previously first Node, which was stored in head is now assigned to next part of Node New
+    list->head = New;              //the address of new first ele which is present in Node New is assigned to head Node
 }
 
 void print(LinkedList* list)

@@ -11,3 +11,5 @@ add_executable(embededOS buffer.c
         DataStructureLibrary/linkedlist.c
         DataStructureLibrary/linkedlist.h
 )
+
+target_link_libraries(embededOS m)
