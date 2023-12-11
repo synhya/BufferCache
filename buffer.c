@@ -60,15 +60,15 @@ int least_recently_used()
 {
     Node* ptr = cached_block_nr_list.head;
     CacheEntry* entry;
-    clock_t most_recent_time = start_time;
+    clock_t least_recent_time = start_time;
     int target_idx = -1;
 
     for(;ptr != NULL; ptr = ptr->next) {
         entry = (CacheEntry*)ht_lookup(&hash_table, &ptr->value);
         clock_t last_ref_time = entry->last_ref_time;
-
-        if(last_ref_time - most_recent_time > 0) {
-            most_recent_time = last_ref_time;
+        //가장 오래전 참조된 부분을 찾음
+        if(last_ref_time < least_recent_time) {
+            least_recent_time = last_ref_time;
             target_idx = ptr->value;
         }
     }
@@ -79,7 +79,14 @@ int least_recently_used()
 int least_frequently_used()
 {
     Node* ptr = cached_block_nr_list.head;
-    CacheEntry* entry;
+    //캐시 엔트리가 비어있는지 확인하기 위해 선언과 함께 초기화
+    CacheEntry* entry = (CacheEntry*)ht_lookup(&hash_table, &ptr->value);
+
+    //캐시 엔트리가 유효한지 확인
+    if (entry == NULL) {
+        return -1;
+    }
+
     int min=9999999;
     int target_idx = -1;
 
