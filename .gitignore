@@ -10,5 +10,7 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 BufferCache.pdf
+CMakeLists.txt
+.idea
 
 /cmake-build-debug
