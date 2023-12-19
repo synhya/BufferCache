@@ -12,7 +12,7 @@
 #include "DataStructureLibrary/linkedlist.h"
 
 #define BLOCK_SIZE	4096
-#define BLOCK_MAX_COUNT 100
+#define BLOCK_MAX_COUNT 1000
 #define CACHE_SIZE 10
 
 typedef struct CacheEntry{
@@ -63,13 +63,14 @@ int least_recently_used()
 {
     Node* ptr = cached_block_nr_list.head;
     CacheEntry* entry;
-    clock_t least_recent_time = start_time;
+    clock_t least_recent_time = clock(); // 가장 최근이 최소이므로
     int target_idx = -1;
 
     for(;ptr != NULL; ptr = ptr->next) {
         entry = (CacheEntry*)ht_lookup(&hash_table, &ptr->value);
         clock_t last_ref_time = entry->last_ref_time;
-        //가장 오래전 참조된 부분을 찾음
+
+        //가장 예전에 참조된 부분을 찾음
         if(last_ref_time < least_recent_time) {
             least_recent_time = last_ref_time;
             target_idx = ptr->value;
@@ -182,7 +183,7 @@ void update_buffer_cache_state(int block_nr, char * buffer_data) {
         /****************** least_recently_used ******************/
         // iterate all entries' last_ref_time and
         // erase the one with lowest time value
-        else if(strcmp(algorithm, "least_recently_used") == 0)
+        else if(strcmp(algorithm, "LRU") == 0)
         {
             target_block_nr = least_recently_used();
             list_pop_item(&cached_block_nr_list, target_block_nr);
@@ -190,7 +191,7 @@ void update_buffer_cache_state(int block_nr, char * buffer_data) {
         /****************** least_frequently_used ******************/
         // iterate all entries' ref_count value and
         // erase the one with lowest time value
-        else if(strcmp(algorithm, "least_frequently_used") == 0)
+        else if(strcmp(algorithm, "LFU") == 0)
         {
             target_block_nr = least_frequently_used();
             list_pop_item(&cached_block_nr_list, target_block_nr);
@@ -362,7 +363,7 @@ int main (int argc, char *argv[])
 
     ht_setup(&hash_table, sizeof(int), sizeof(CacheEntry), BLOCK_MAX_COUNT * 5);
     list_setup(&cached_block_nr_list, CACHE_SIZE);
-    algorithm = argv[1];
+    algorithm = argv[1]; //
     start_time = clock();
 
     unsigned int seed = time(NULL);
@@ -392,7 +393,7 @@ int main (int argc, char *argv[])
     printf("total hit count: %d\n", hit_counter);
     printf("hit ratio: %lf\n", (double)hit_counter / (double)access_count);
     printf("average hit access time : %lf\n", average_hit_access_time / (double)hit_counter);
-    printf("average miss access time : %lf\n", average_miss_access_time / (double)(hit_counter - access_count));
+    printf("average miss access time : %lf\n", -average_miss_access_time / (double)(hit_counter - access_count));
 
     ht_clear(&hash_table);
 
