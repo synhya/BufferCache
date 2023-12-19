@@ -38,6 +38,9 @@ clock_t start_time;
 int* block_access_sequence;
 int hit_counter;
 
+double average_hit_access_time;
+double average_miss_access_time;
+
 double box_muller_distribution() {
     double x, y, z = -99;
     double limitValue = 2.5;
@@ -244,10 +247,14 @@ int buffered_write(int block_nr, char *user_buffer)
 int os_read(int block_nr, char *user_buffer)
 {
     int ret;
+    clock_t before_t = clock();
 
     // implement BUFFERED_READ
     if((ret = buffered_read(block_nr, user_buffer)) == 0) {
         hit_counter++;
+
+        clock_t after_t = clock();
+        average_hit_access_time += (double)(clock() - before_t) / CLOCKS_PER_SEC;
     }
 
     /****************** cache miss ******************/
@@ -261,6 +268,8 @@ int os_read(int block_nr, char *user_buffer)
             return ret;
 
         memcpy(user_buffer, disk_buffer, BLOCK_SIZE);
+
+        average_miss_access_time += (double)(clock() - before_t) / CLOCKS_PER_SEC;
     }
 
     update_buffer_cache_state(block_nr, user_buffer);
@@ -272,9 +281,13 @@ int os_write(int block_nr, char *user_buffer)
 {
     int ret;
 
+    clock_t before_t = clock();
+
     // implement BUFFERED_WRITE
     if((ret = buffered_write(block_nr, user_buffer)) == 0) {
         hit_counter++;
+
+        average_hit_access_time += (double)(clock() - before_t) / CLOCKS_PER_SEC;
     }
 
     /****************** cache miss ******************/
@@ -286,6 +299,8 @@ int os_write(int block_nr, char *user_buffer)
         ret = write(disk_fd, user_buffer, BLOCK_SIZE);
         if (ret < 0)
             return ret;
+
+        average_miss_access_time += (double)(clock() - before_t) / CLOCKS_PER_SEC;
     }
 
     update_buffer_cache_state(block_nr, user_buffer);
@@ -338,6 +353,8 @@ int main (int argc, char *argv[])
     char *buffer;
     int ret;
 
+    average_hit_access_time = 0;
+    average_miss_access_time = 0;
 
     init();
 
@@ -374,6 +391,8 @@ int main (int argc, char *argv[])
     printf("total access count: %d\n", access_count);
     printf("total hit count: %d\n", hit_counter);
     printf("hit ratio: %lf\n", (double)hit_counter / (double)access_count);
+    printf("average hit access time : %lf\n", average_hit_access_time / (double)hit_counter);
+    printf("average miss access time : %lf\n", average_miss_access_time / (double)(hit_counter - access_count));
 
     ht_clear(&hash_table);
 
